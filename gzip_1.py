@@ -198,6 +198,15 @@ class GZIP:
             print(f"Lista de valores binários: {lista_valores_binario}")
 
 
+            #criar a árvore de Huffman
+            hft = HuffmanTree()
+            verbose = True
+
+            for code in range(len(lista_valores_binario)):
+                if lista_valores_binario[code] != '':
+                    erro = hft.addNode(lista_valores_binario[code], lista_valores_comprimento[code], verbose)
+
+
             # update number of blocks read
             numBlocks += 1
 
