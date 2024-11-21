@@ -155,7 +155,9 @@ class GZIP:
 
             # read HLIT, HDIST and HCLEN
             HLIT = self.readBits(5) + 257
+            print(f"HLIT: {HLIT}")
             HDIST = self.readBits(5) + 1
+            print(f"HDIST: {HDIST}")
             HCLEN = self.readBits(4) + 4
 
             # criar uma lista com 19 elementos, todos a 0
@@ -175,15 +177,14 @@ class GZIP:
             valor = 0
 
             print(f"Lista de valores de comprimento: {lista_valores_comprimento}")
-            #print(f"Lista de comprimentos: {lista_comprimentos}")
 
             # Atribuir valores decimais e binários
             for comprimento in lista_comprimentos:
                 # Posições onde o comprimento atual está presente
                 indices = np.where(lista_valores_comprimento == comprimento)[0]
                 # Atribuir valores decimais sequenciais e binários na base do comprimento
-                lista_valores_decimal[indices] = [str(valor + i) for i in range(len(indices))] # valor += 1 até ao tamanho dos indices
-                valor += len(indices) # incrementa o valor para o tamanho dos indices
+                lista_valores_decimal[indices] = [str(valor + i) for i in range(len(indices))]
+                valor += len(indices)
                 
                 # Ajustar o valor inicial para o próximo comprimento (vezes 2)
                 valor <<= 1
@@ -191,27 +192,31 @@ class GZIP:
             # Converter para binários com base no comprimento de cada elemento
             for i, val in enumerate(lista_valores_decimal):
                 if val:
-                    binario = bin(int(val))[2:]  # Remove o prefixo '0b'
-                    lista_valores_binario[i] = binario.zfill(lista_valores_comprimento[i]) #preenche com zeros à esquerda
+                    binario = bin(int(val))[2:]
+                    lista_valores_binario[i] = binario.zfill(lista_valores_comprimento[i])
 
-            #print(f"Lista de valores decimais: {lista_valores_decimal}")
             print(f"Lista de valores binários: {lista_valores_binario}")
 
-
-            #criar a árvore de Huffman
+            # criar a árvore de Huffman
             hft = HuffmanTree()
             verbose = True
 
             for code in range(len(lista_valores_binario)):
                 if lista_valores_binario[code] != '':
-                    erro = hft.addNode(lista_valores_binario[code], lista_valores_comprimento[code], verbose)
+                    erro = hft.addNode(lista_valores_binario[code], code, verbose)
 
+            # Ler e armazenar os comprimentos dos códigos HLIT
+            comprimentos_literais = self.ler_comprimentos(hft, HLIT)
+            print("Comprimentos Literais:", comprimentos_literais)
+
+            # Ler e armazenar os comprimentos dos códigos HDIST
+            comprimentos_distancias = self.ler_comprimentos(hft, HDIST)
+            print("Comprimentos Distâncias:", comprimentos_distancias)
 
             # update number of blocks read
             numBlocks += 1
 
         # close file
-
         self.f.close()
         print("End: %d block(s) analyzed." % numBlocks)
 
@@ -256,6 +261,35 @@ class GZIP:
             self.available_bits -= n
 
         return value
+
+    def ler_comprimentos(self, huffman_tree, count):
+        ''' reads and stores lengths using the provided Huffman tree '''
+        comprimentos = []
+        print(f"Count: {count}")
+        for _ in range(count):
+            huffman_tree.resetCurNode()
+            while True:
+                bit = self.readBits(1)
+                pos = huffman_tree.nextNode(str(bit))
+                if pos >= 0:
+                    if pos == 16:
+                        last_length = comprimentos[-1]
+                        repeat_count = self.readBits(2) + 3
+                        comprimentos.extend([last_length] * repeat_count)
+                    elif pos == 17:
+                        repeat_count = self.readBits(3) + 3
+                        comprimentos.extend([0] * repeat_count)
+                    elif pos == 18:
+                        repeat_count = self.readBits(7) + 11
+                        comprimentos.extend([0] * repeat_count)
+                    else:
+                        comprimentos.append(pos)
+                    break
+                elif pos == -1:
+                    raise ValueError("Erro: Código inválido ou não encontrado.")
+                elif pos == -2:
+                    continue
+        return comprimentos
 
 
 if __name__ == '__main__':
