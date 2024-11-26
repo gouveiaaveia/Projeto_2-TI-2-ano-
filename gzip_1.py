@@ -159,53 +159,75 @@ class GZIP:
             HCLEN = self.readBits(4) + 4
 
             # criar uma lista com 19 elementos, todos a 0
-            lista_valores_comprimento = np.zeros(19, dtype=int)
+            lista_valores_comprimento_HCLEN = np.zeros(19, dtype=int)
             ordem_da_lista = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]
 
             # ler os valores de HCLEN
             for i in range(HCLEN):
-                lista_valores_comprimento[ordem_da_lista[i]] = self.readBits(3)
+                lista_valores_comprimento_HCLEN[ordem_da_lista[i]] = self.readBits(3)
 
             # Listas de valores decimais e binários (strings)
-            lista_valores_decimal = np.full(19, '', dtype='U10')
-            lista_valores_binario = np.full(19, '', dtype='U10')
+            lista_valores_decimal_comprimentos = np.full(19, '', dtype='U10')
+            lista_valores_binario_comprimentos = np.full(19, '', dtype='U10')
 
             # Lista única de comprimentos e o valor inicial
-            lista_comprimentos = np.unique(lista_valores_comprimento[lista_valores_comprimento > 0])
-            valor = 0
+            lista_comprimentos_comprimentos = np.unique(lista_valores_comprimento_HCLEN[lista_valores_comprimento_HCLEN > 0])
 
-            print(f"Lista de valores de comprimento: {lista_valores_comprimento}")
+            print(f"\nLista de valores de comprimento: {lista_valores_comprimento_HCLEN}")
             #print(f"Lista de comprimentos: {lista_comprimentos}")
 
             # Atribuir valores decimais e binários
-            for comprimento in lista_comprimentos:
-                # Posições onde o comprimento atual está presente
-                indices = np.where(lista_valores_comprimento == comprimento)[0]
-                # Atribuir valores decimais sequenciais e binários na base do comprimento
-                lista_valores_decimal[indices] = [str(valor + i) for i in range(len(indices))] # valor += 1 até ao tamanho dos indices
-                valor += len(indices) # incrementa o valor para o tamanho dos indices
-                
-                # Ajustar o valor inicial para o próximo comprimento (vezes 2)
-                valor <<= 1
+            self.valores_decimais(lista_comprimentos_comprimentos, lista_valores_decimal_comprimentos, lista_valores_comprimento_HCLEN)
 
             # Converter para binários com base no comprimento de cada elemento
-            for i, val in enumerate(lista_valores_decimal):
-                if val:
-                    binario = bin(int(val))[2:]  # Remove o prefixo '0b'
-                    lista_valores_binario[i] = binario.zfill(lista_valores_comprimento[i]) #preenche com zeros à esquerda
+            self.valores_binarios(lista_valores_decimal_comprimentos, lista_valores_binario_comprimentos, lista_valores_comprimento_HCLEN)
+            print(f"\nLista de valores binários: {lista_valores_binario_comprimentos}")
 
-            #print(f"Lista de valores decimais: {lista_valores_decimal}")
-            print(f"Lista de valores binários: {lista_valores_binario}")
-
-
-            #criar a árvore de Huffman
+            #criar a árvore de Huffman (semana 2)
             hft = HuffmanTree()
-            verbose = True
+            verbose = False
+            self.arvore_huffman(lista_valores_binario_comprimentos, hft, verbose)
 
-            for code in range(len(lista_valores_binario)):
-                if lista_valores_binario[code] != '':
-                    erro = hft.addNode(lista_valores_binario[code], lista_valores_comprimento[code], verbose)
+            #semana 3
+            #ponto 4
+            lista_comprimentos_HLIT = np.zeros(286, dtype=int)
+            
+            self.leitura_comprimentos_codigo(lista_comprimentos_HLIT, hft, HLIT - 1)
+            print(f"\nLista de comprimentos HLIT: {lista_comprimentos_HLIT}")
 
+            lista_valores_decimal_lit = np.full(286, '', dtype='U10')
+            lista_valores_binario_lit = np.full(286, '', dtype='U10')
+
+            lista_comprimentos_lit = np.unique(lista_comprimentos_HLIT[lista_comprimentos_HLIT > 0])
+
+            self.valores_decimais(lista_comprimentos_lit, lista_valores_decimal_lit, lista_comprimentos_HLIT)
+
+            self.valores_binarios(lista_valores_decimal_lit, lista_valores_binario_lit, lista_comprimentos_HLIT)
+            print(f"\nLista de valores binários lit: {lista_valores_binario_lit}")
+
+            hft2 = HuffmanTree()
+            verbose = False
+            self.arvore_huffman(lista_valores_binario_lit, hft2, verbose)
+
+            #ponto 5
+            lista_comprimentos_HDIST = np.zeros(30, dtype=int)
+            self.leitura_comprimentos_codigo(lista_comprimentos_HDIST, hft, HDIST - 1)
+            print(f"\nLista de comprimentos HDIST: {lista_comprimentos_HDIST}")
+
+            lista_valores_decimal_dist = np.full(30, '', dtype='U10')
+            lista_valores_binario_dist = np.full(30, '', dtype='U10')
+
+            lista_comprimentos_dist = np.unique(lista_comprimentos_HDIST[lista_comprimentos_HDIST > 0])
+
+            self.valores_decimais(lista_comprimentos_dist, lista_valores_decimal_dist, lista_comprimentos_HDIST)
+            print(lista_valores_decimal_dist)
+
+            self.valores_binarios(lista_valores_decimal_dist, lista_valores_binario_dist, lista_comprimentos_HDIST)
+            print(f"\nLista de valores binários dist: {lista_valores_binario_dist}")
+
+            hft3 = HuffmanTree()
+            verbose = False
+            self.arvore_huffman(lista_valores_binario_dist, hft3, verbose)
 
             # update number of blocks read
             numBlocks += 1
@@ -214,6 +236,81 @@ class GZIP:
 
         self.f.close()
         print("End: %d block(s) analyzed." % numBlocks)
+
+
+    def valores_decimais(self, lista_comprimentos, lista_valores_decimal, lista_valores_comprimento):
+        valor = 0
+        comprimento_anterior = lista_comprimentos[0]
+
+        # Atribuir valores decimais e binários
+        for comprimento in lista_comprimentos:
+            # Verificar diferença entre comprimentos
+            diferenca = comprimento - comprimento_anterior
+
+            if diferenca > 1:
+                # Incrementar e multiplicar o valor por 2 para cada diferença maior que 1
+                for _ in range(diferenca - 1):
+                    valor = (valor) << 1
+
+            # Posições onde o comprimento atual está presente
+            indices = np.where(lista_valores_comprimento == comprimento)[0]
+            
+            # Atribuir valores decimais sequenciais para os índices
+            lista_valores_decimal[indices] = [str(valor + i) for i in range(len(indices))]
+
+            # Atualizar o valor base e o comprimento anterior
+            valor += len(indices)
+            valor <<= 1  # Ajustar para o próximo comprimento
+            comprimento_anterior = comprimento
+
+
+    def valores_binarios(self, lista_valores_decimal, lista_valores_binario, lista_valores_comprimento):
+        # Converter para binários com base no comprimento de cada elemento
+            for i, val in enumerate(lista_valores_decimal):
+                if val:
+                    binario = bin(int(val))[2:]  # Remove o prefixo '0b'
+                    lista_valores_binario[i] = binario.zfill(lista_valores_comprimento[i]) #preenche com zeros à esquerda
+
+
+    def arvore_huffman(self, lista_valores_binario, hft, verbose):
+        for code in range(len(lista_valores_binario)):
+                if lista_valores_binario[code] != '':
+                    erro = hft.addNode(lista_valores_binario[code], code, verbose)
+
+
+    def leitura_comprimentos_codigo(self, lista_comprimento, hft, tamanho):
+            hft.resetCurNode()
+            i = 0
+            posicao_array = 0
+            code = ""
+            while posicao_array <= tamanho:
+                leitura = self.readBits(1)
+                code += str(leitura)
+                pos = hft.nextNode(str(leitura))
+
+                if pos == -1:
+                    print("Code '" + code + "' not found!!!")
+                    break
+                elif pos == -2:
+                    continue
+                else:
+                    if pos == 16:
+                        valor = self.readBits(2) + 3
+                        lista_comprimento[posicao_array:posicao_array + valor] = lista_comprimento[posicao_array - 1]
+                        posicao_array += valor
+                    elif pos == 17:
+                        valor = self.readBits(3) + 3
+                        lista_comprimento[posicao_array:posicao_array + valor] = 0
+                        posicao_array += valor
+                    elif pos == 18:
+                        valor = self.readBits(7) + 11
+                        lista_comprimento[posicao_array:posicao_array + valor] = 0
+                        posicao_array += valor
+                    else:
+                        lista_comprimento[posicao_array] = pos
+                        posicao_array += 1
+                    code = ""
+                    hft.resetCurNode()
 
     def getOrigFileSize(self):
         ''' reads file size of original file (before compression) - ISIZE '''
