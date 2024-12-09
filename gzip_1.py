@@ -205,8 +205,8 @@ class GZIP:
             self.valores_binarios(lista_valores_decimal_lit, lista_valores_binario_lit, lista_comprimentos_HLIT)
             print(f"\nLista de valores binários lit: {lista_valores_binario_lit}")
 
-            hft2 = HuffmanTree()
-            verbose = False
+            hft2 = HuffmanTree() # arvore dos literais
+            verbose = True
             self.arvore_huffman(lista_valores_binario_lit, hft2, verbose)
 
             #ponto 5
@@ -220,14 +220,22 @@ class GZIP:
             lista_comprimentos_dist = np.unique(lista_comprimentos_HDIST[lista_comprimentos_HDIST > 0])
 
             self.valores_decimais(lista_comprimentos_dist, lista_valores_decimal_dist, lista_comprimentos_HDIST)
-            print(lista_valores_decimal_dist)
-
+        
             self.valores_binarios(lista_valores_decimal_dist, lista_valores_binario_dist, lista_comprimentos_HDIST)
             print(f"\nLista de valores binários dist: {lista_valores_binario_dist}")
 
-            hft3 = HuffmanTree()
+            hft3 = HuffmanTree() # arvore das distâncias
             verbose = False
             self.arvore_huffman(lista_valores_binario_dist, hft3, verbose)
+
+            #ponto 7
+            max_dist = 32768  # Distância máxima permitida
+            ficheiro_saida = "output.bin"
+
+            # Processa a descompactação
+            lista_descompactada = []
+            lista_descompactada.append(self.descompactacao(hft2, hft3, max_dist))
+            print(f"\nLista descompactada: {lista_descompactada}")
 
             # update number of blocks read
             numBlocks += 1
@@ -311,6 +319,82 @@ class GZIP:
                         posicao_array += 1
                     code = ""
                     hft.resetCurNode()
+
+
+    def descompactacao(self, hft_literais, hft_distancias, max_dist, ficheiro_saida="output.bin"):
+
+        comprimentos = {257: (0, 3), 258: (0, 4), 259: (0, 5), 260: (0, 6), 261: (0, 7), 262: (0, 8), 263: (0, 9),
+                        264: (0, 10), 265: (1, 11), 266: (1, 13), 267: (1, 15), 268: (1, 17), 269: (2, 19), 270: (2, 23), 
+                        271: (2, 27), 272: (2, 31), 273: (3, 35), 274: (3, 43), 275: (3, 51), 276: (3, 59), 
+                        277: (4, 67), 278: (4, 83), 279: (4, 99), 280: (4, 115), 281: (5, 131), 282: (5, 163), 
+                        283: (5, 195), 284: (5, 227), 285: (0, 258)}
+
+        distanicas = {0: (0, 1), 1: (0, 2), 2: (0, 3), 3: (0, 4), 4: (1, 5), 5: (1, 7), 6: (2, 9), 7: (2, 13), 
+                    8: (3, 17), 9: (3, 25), 10: (4, 33), 11: (4, 49), 12: (5, 65), 13: (5, 97), 14: (6, 129), 
+                    15: (6, 193), 16: (7, 257), 17: (7, 385), 18: (8, 513), 19: (8, 769), 20: (9, 1025), 
+                    21: (9, 1537), 22: (10, 2049), 23: (10, 3073), 24: (11, 4097), 25: (11, 6145), 26: (12, 8193), 
+                    27: (12, 12289), 28: (13, 16385), 29: (13, 24577)}
+
+        lista_descompactada = []
+        hft_literais.resetCurNode()
+        code = ""
+        comprimento = 0
+
+        while True:
+            leitura = self.readBits(1)
+            code += str(leitura)
+            pos = hft_literais.nextNode(str(leitura))
+
+            if pos == -1:
+                print("Code " + code + " not found!!")
+                break
+            elif pos == -2:
+                continue
+            elif pos < 256:
+                lista_descompactada.append(pos)
+                hft_literais.resetCurNode()
+                while len(lista_descompactada) > max_dist:
+                    del lista_descompactada[0]
+                continue
+
+            elif pos == 256:
+                print("End of block")
+                break
+
+            else:
+                comprimento = self.readBits(comprimentos[pos][0]) + comprimentos[pos][1]
+
+                hft_distancias.resetCurNode()
+
+                while True:
+                    leitura2 = self.readBits(1)
+                    pos2 = hft_distancias.nextNode(str(leitura2))
+
+                    if pos2 == -1:
+                        print("Code " + str(leitura2) + " not found!!!")
+                        break
+                    elif pos2 == -2:
+                        continue
+                    else:
+                        dist = self.readBits(distanicas[pos2][0]) + distanicas[pos2][1]
+                        
+                        for i in range(comprimento):
+                            if len(lista_descompactada) - dist >= 0:
+                                valor = lista_descompactada[len(lista_descompactada) - dist]
+                                lista_descompactada.append(valor)
+                                while len(lista_descompactada) > max_dist:
+                                    del lista_descompactada[0]
+
+                        hft_literais.resetCurNode()
+        # Escrever a lista descompactada num ficheiro
+        self.escrever_em_ficheiro(bytearray(lista_descompactada), ficheiro_saida)
+
+
+
+    def escrever_em_ficheiro(self, lista_descompactada, ficheiro_saida):
+        with open(ficheiro_saida, "wb") as file:
+            file.write(bytes(lista_descompactada))
+
 
     def getOrigFileSize(self):
         ''' reads file size of original file (before compression) - ISIZE '''
