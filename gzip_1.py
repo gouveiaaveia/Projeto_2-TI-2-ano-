@@ -230,12 +230,9 @@ class GZIP:
 
             #ponto 7
             max_dist = 32768  # Distância máxima permitida
-            ficheiro_saida = "output.bin"
 
             # Processa a descompactação
-            lista_descompactada = []
-            lista_descompactada.append(self.descompactacao(hft2, hft3, max_dist))
-            print(f"\nLista descompactada: {lista_descompactada}")
+            self.descompactacao(hft2, hft3, max_dist)
 
             # update number of blocks read
             numBlocks += 1
@@ -350,19 +347,23 @@ class GZIP:
                 break
             elif pos == -2:
                 continue
-            elif pos < 256:
+
+            hft_literais.resetCurNode()
+
+            if pos == 256:
+                print("End of block")
+                break
+
+            if pos < 256:
                 lista_descompactada.append(pos)
                 hft_literais.resetCurNode()
                 while len(lista_descompactada) > max_dist:
                     del lista_descompactada[0]
                 continue
 
-            elif pos == 256:
-                print("End of block")
-                break
-
             else:
-                comprimento = self.readBits(comprimentos[pos][0]) + comprimentos[pos][1]
+                comprimento = self.readBits(comprimentos[pos][0]) if comprimentos[pos][0] > 0 else 0
+                comprimento += comprimentos[pos][1]
 
                 hft_distancias.resetCurNode()
 
@@ -376,7 +377,8 @@ class GZIP:
                     elif pos2 == -2:
                         continue
                     else:
-                        dist = self.readBits(distanicas[pos2][0]) + distanicas[pos2][1]
+                        dist = self.readBits(distanicas[pos2][0]) if distanicas[pos2][0] > 0 else 0 
+                        dist += distanicas[pos2][1]
                         
                         for i in range(comprimento):
                             if len(lista_descompactada) - dist >= 0:
@@ -384,8 +386,8 @@ class GZIP:
                                 lista_descompactada.append(valor)
                                 while len(lista_descompactada) > max_dist:
                                     del lista_descompactada[0]
+                        break
 
-                        hft_literais.resetCurNode()
         # Escrever a lista descompactada num ficheiro
         self.escrever_em_ficheiro(bytearray(lista_descompactada), ficheiro_saida)
 
