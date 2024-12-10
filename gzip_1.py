@@ -167,8 +167,8 @@ class GZIP:
                 lista_valores_comprimento_HCLEN[ordem_da_lista[i]] = self.readBits(3)
 
             # Listas de valores decimais e binários (strings)
-            lista_valores_decimal_comprimentos = np.full(19, '', dtype='U10')
-            lista_valores_binario_comprimentos = np.full(19, '', dtype='U10')
+            lista_valores_decimal_comprimentos = np.full(19, '', dtype='U30')
+            lista_valores_binario_comprimentos = np.full(19, '', dtype='U30')
 
             # Lista única de comprimentos e o valor inicial
             lista_comprimentos_comprimentos = np.unique(lista_valores_comprimento_HCLEN[lista_valores_comprimento_HCLEN > 0])
@@ -192,11 +192,11 @@ class GZIP:
             #ponto 4
             lista_comprimentos_HLIT = np.zeros(286, dtype=int)
             
-            self.leitura_comprimentos_codigo(lista_comprimentos_HLIT, hft, HLIT - 1)
+            self.leitura_comprimentos_codigo(lista_comprimentos_HLIT, hft, HLIT)
             print(f"\nLista de comprimentos HLIT: {lista_comprimentos_HLIT}")
 
-            lista_valores_decimal_lit = np.full(286, '', dtype='U10')
-            lista_valores_binario_lit = np.full(286, '', dtype='U10')
+            lista_valores_decimal_lit = np.full(286, '', dtype='U30')
+            lista_valores_binario_lit = np.full(286, '', dtype='U30')
 
             lista_comprimentos_lit = np.unique(lista_comprimentos_HLIT[lista_comprimentos_HLIT > 0])
 
@@ -206,16 +206,16 @@ class GZIP:
             print(f"\nLista de valores binários lit: {lista_valores_binario_lit}")
 
             hft2 = HuffmanTree() # arvore dos literais
-            verbose = True
+            verbose = False
             self.arvore_huffman(lista_valores_binario_lit, hft2, verbose)
 
             #ponto 5
             lista_comprimentos_HDIST = np.zeros(30, dtype=int)
-            self.leitura_comprimentos_codigo(lista_comprimentos_HDIST, hft, HDIST - 1)
+            self.leitura_comprimentos_codigo(lista_comprimentos_HDIST, hft, HDIST)
             print(f"\nLista de comprimentos HDIST: {lista_comprimentos_HDIST}")
 
-            lista_valores_decimal_dist = np.full(30, '', dtype='U10')
-            lista_valores_binario_dist = np.full(30, '', dtype='U10')
+            lista_valores_decimal_dist = np.full(30, '', dtype='U30')
+            lista_valores_binario_dist = np.full(30, '', dtype='U30')
 
             lista_comprimentos_dist = np.unique(lista_comprimentos_HDIST[lista_comprimentos_HDIST > 0])
 
@@ -232,7 +232,9 @@ class GZIP:
             max_dist = 32768  # Distância máxima permitida
 
             # Processa a descompactação
-            self.descompactacao(hft2, hft3, max_dist)
+            lista_descompactada = self.descompactacao(hft2, hft3, max_dist)
+
+            self.escrever_em_ficheiro(lista_descompactada, fileName[0:-3])
 
             # update number of blocks read
             numBlocks += 1
@@ -270,17 +272,22 @@ class GZIP:
 
 
     def valores_binarios(self, lista_valores_decimal, lista_valores_binario, lista_valores_comprimento):
-        # Converter para binários com base no comprimento de cada elemento
-            for i, val in enumerate(lista_valores_decimal):
-                if val:
-                    binario = bin(int(val))[2:]  # Remove o prefixo '0b'
-                    lista_valores_binario[i] = binario.zfill(lista_valores_comprimento[i]) #preenche com zeros à esquerda
+        '''Converte valores decimais para binários com o preenchimento adequado de zeros à esquerda'''
+        for i, val in enumerate(lista_valores_decimal):
+            if val:
+                # Converte o valor decimal para binário
+                binario = bin(int(val))[2:]  # Remove o prefixo '0b'
+            
+                # Preenche com zeros à esquerda para que o comprimento binário seja igual ao comprimento especificado
+                print(f"{lista_valores_comprimento[i]} {binario}")
+                lista_valores_binario[i] = binario.zfill(lista_valores_comprimento[i]) 
+
 
 
     def arvore_huffman(self, lista_valores_binario, hft, verbose):
         for code in range(len(lista_valores_binario)):
                 if lista_valores_binario[code] != '':
-                    erro = hft.addNode(lista_valores_binario[code], code, verbose)
+                    hft.addNode(lista_valores_binario[code], code, verbose)
 
 
     def leitura_comprimentos_codigo(self, lista_comprimento, hft, tamanho):
@@ -288,7 +295,7 @@ class GZIP:
             i = 0
             posicao_array = 0
             code = ""
-            while posicao_array <= tamanho:
+            while posicao_array < tamanho:
                 leitura = self.readBits(1)
                 code += str(leitura)
                 pos = hft.nextNode(str(leitura))
@@ -318,7 +325,7 @@ class GZIP:
                     hft.resetCurNode()
 
 
-    def descompactacao(self, hft_literais, hft_distancias, max_dist, ficheiro_saida="output.bin"):
+    def descompactacao(self, hft_literais, hft_distancias, max_dist):
 
         comprimentos = {257: (0, 3), 258: (0, 4), 259: (0, 5), 260: (0, 6), 261: (0, 7), 262: (0, 8), 263: (0, 9),
                         264: (0, 10), 265: (1, 11), 266: (1, 13), 267: (1, 15), 268: (1, 17), 269: (2, 19), 270: (2, 23), 
@@ -388,14 +395,11 @@ class GZIP:
                                     del lista_descompactada[0]
                         break
 
-        # Escrever a lista descompactada num ficheiro
-        self.escrever_em_ficheiro(bytearray(lista_descompactada), ficheiro_saida)
-
-
+        return lista_descompactada
 
     def escrever_em_ficheiro(self, lista_descompactada, ficheiro_saida):
-        with open(ficheiro_saida, "wb") as file:
-            file.write(bytes(lista_descompactada))
+        with open(ficheiro_saida, "ab+") as file:
+            file.write(bytearray(lista_descompactada))
 
 
     def getOrigFileSize(self):
@@ -444,7 +448,7 @@ class GZIP:
 if __name__ == '__main__':
 
     # gets filename from command line if provided
-    fileName = "FAQ.txt.gz"
+    fileName = "sample_audio.mp3.gz"
     if len(sys.argv) > 1:
         fileName = sys.argv[1]
 
